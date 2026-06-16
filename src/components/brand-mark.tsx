@@ -1,0 +1,19 @@
+/* Draft Manager logo — the "DM" jersey tile. Letters are outlined Anton
+   (no font dependency); the tile fills with --brand so it tints per theme.
+   Source of truth for the static exports in /public/brand. */
+const DM_PATH =
+  "M35.42 88.08L19.29 88.08L19.29 27.92L35.83 27.92Q42.33 27.92 45.61 31.53Q48.89 35.13 48.89 42.07L48.89 70.24Q48.89 78.78 45.90 83.43Q42.91 88.08 35.42 88.08M31.39 38.45L31.39 77.45L33.48 77.45Q36.79 77.45 36.79 74.24L36.79 43.20Q36.79 40.19 35.99 39.32Q35.19 38.45 32.72 38.45L31.39 38.45M64.68 88.08L53.81 88.08L53.81 27.92L72.13 27.92L77.19 64.60L82.22 27.92L100.71 27.92L100.71 88.08L89.70 88.08L89.70 44.74L82.80 88.08L72 88.08L64.68 44.74";
+
+export function BrandMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 120 120"
+      className={className}
+      role="img"
+      aria-label="Draft Manager"
+    >
+      <path d="M4 4 H116 V92 L92 116 H4 Z" fill="var(--brand)" />
+      <path d={DM_PATH} fill="#0E1513" />
+    </svg>
+  );
+}
