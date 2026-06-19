@@ -19,9 +19,11 @@ import { cn } from "@/lib/utils";
 import {
   type Position,
   POSITIONS,
-  XI_SLOTS,
-  BENCH_SIZE,
+  POSITION_LABEL,
+  SQUAD_QUOTA,
+  ROSTER_SIZE,
   TOTAL_ROUNDS,
+  countByPosition,
   canDraftPosition,
   seatForPick,
   roundForPick,
@@ -166,6 +168,8 @@ export function DraftRoom({
       .filter((x): x is Position => Boolean(x));
   }, [picks, myTeam, playerById]);
 
+  const myCounts = useMemo(() => countByPosition(myPositions), [myPositions]);
+
   const canDraft = useCallback(
     (p: Player) => isMyTurn && canDraftPosition(myPositions, p.position),
     [isMyTurn, myPositions],
@@ -223,7 +227,7 @@ export function DraftRoom({
           {[
             ["players", "Players"],
             ["queue", `Queue${queue.length ? ` · ${queue.length}` : ""}`],
-            ["team", "My XI"],
+            ["team", "Squad"],
             ["board", "Board"],
           ].map(([v, label]) => (
             <TabsTrigger
@@ -238,6 +242,7 @@ export function DraftRoom({
 
         {/* ── Players ── */}
         <TabsContent value="players" className="flex-1">
+          {myTeam && <RosterQuota counts={myCounts} className="mb-3" />}
           <PlayerPool
             players={players}
             queue={queue}
@@ -245,6 +250,7 @@ export function DraftRoom({
             onToggleQueue={toggle}
             onDraft={draftPlayer}
             canDraft={canDraft}
+            counts={myTeam ? myCounts : undefined}
             busy={busy}
           />
         </TabsContent>
@@ -270,10 +276,10 @@ export function DraftRoom({
           />
         </TabsContent>
 
-        {/* ── My XI ── */}
+        {/* ── Squad ── */}
         <TabsContent value="team" className="flex-1">
           {myTeam ? (
-            <PitchView
+            <SquadView
               picks={picks.filter((p) => p.team_id === myTeam.id)}
               playerById={playerById}
             />
@@ -493,76 +499,138 @@ function Scoreboard({
   );
 }
 
-function PitchView({
+/**
+ * Per-position draft progress (GK 1/2 · DEF 3/5 · …). A position turns "full"
+ * (and undraftable) once its quota is met — the visual half of the rule the
+ * draft engine enforces in canDraftPosition.
+ */
+function RosterQuota({
+  counts,
+  className,
+}: {
+  counts: Record<Position, number>;
+  className?: string;
+}) {
+  const total = POSITIONS.reduce((n, p) => n + counts[p], 0);
+  return (
+    <div className={cn("flex items-stretch gap-1.5", className)}>
+      {POSITIONS.map((pos) => {
+        const have = counts[pos];
+        const need = SQUAD_QUOTA[pos];
+        const full = have >= need;
+        return (
+          <div
+            key={pos}
+            className={cn(
+              "flex flex-1 flex-col items-center rounded-sm py-1.5 ring-1 transition",
+              full
+                ? "bg-brand/15 ring-brand/50"
+                : "bg-card/60 ring-border",
+            )}
+            title={`${POSITION_LABEL[pos]}: ${have} of ${need}${full ? " — full" : ""}`}
+          >
+            <span
+              className={cn(
+                "kicker leading-none",
+                full ? "text-brand" : "text-muted-foreground",
+              )}
+            >
+              {pos}
+            </span>
+            <span
+              className={cn(
+                "font-display text-lg leading-tight tabular-nums",
+                full ? "text-brand" : "text-foreground",
+              )}
+            >
+              {have}
+              <span className="text-xs text-muted-foreground">/{need}</span>
+            </span>
+          </div>
+        );
+      })}
+      <div className="flex flex-col items-center justify-center rounded-sm bg-muted/40 px-2.5 ring-1 ring-border">
+        <span className="kicker leading-none text-muted-foreground">Squad</span>
+        <span className="font-display text-lg leading-tight tabular-nums">
+          {total}
+          <span className="text-xs text-muted-foreground">/{ROSTER_SIZE}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The drafted squad, laid out as fixed per-position quota slots (GK 2 · DEF 5 ·
+ * MID 6 · FWD 3). Empty slots are placeholders so it's obvious what's left to
+ * fill. Formation/XI selection happens in the season, not the draft.
+ */
+function SquadView({
   picks,
   playerById,
 }: {
   picks: Pick[];
   playerById: Map<string, Player>;
 }) {
-  const slots: Record<Position, Player[]> = { GK: [], DEF: [], MID: [], FWD: [] };
-  const bench: Player[] = [];
+  const byPos: Record<Position, Player[]> = { GK: [], DEF: [], MID: [], FWD: [] };
   for (const pk of [...picks].sort((a, b) => a.pick_number - b.pick_number)) {
     const pl = playerById.get(pk.player_id);
-    if (!pl) continue;
-    if (slots[pl.position].length < XI_SLOTS[pl.position]) slots[pl.position].push(pl);
-    else bench.push(pl);
+    if (pl) byPos[pl.position].push(pl);
   }
-  const xiCount = POSITIONS.reduce((n, p) => n + slots[p].length, 0);
+  const counts = countByPosition(
+    picks
+      .map((pk) => playerById.get(pk.player_id)?.position)
+      .filter((x): x is Position => Boolean(x)),
+  );
   const squadValue = picks.reduce(
     (sum, pk) => sum + (playerById.get(pk.player_id)?.value ?? 0),
     0,
   );
-  const xiRatings = POSITIONS.flatMap((pos) => slots[pos].map((p) => p.rating));
-  const avgRating = xiRatings.length
-    ? Math.round(xiRatings.reduce((a, b) => a + b, 0) / xiRatings.length)
+  const ratings = picks
+    .map((pk) => playerById.get(pk.player_id)?.rating)
+    .filter((x): x is number => typeof x === "number");
+  const avgRating = ratings.length
+    ? Math.round(ratings.reduce((a, b) => a + b, 0) / ratings.length)
     : 0;
 
-  const rows: Position[] = ["FWD", "MID", "DEF", "GK"];
+  const rows: Position[] = ["GK", "DEF", "MID", "FWD"];
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="kicker text-foreground">Starting XI · 1-4-4-2</h3>
+        <h3 className="kicker text-foreground">Your squad</h3>
         <div className="flex items-center gap-2">
           {avgRating > 0 && (
             <span className="kicker">
               ⌀ <span className={cn("font-display", ratingText(avgRating))}>{avgRating}</span>
             </span>
           )}
-          <span className="kicker">{xiCount}/11 · {bench.length}/{BENCH_SIZE} bench</span>
           <ValueTag value={squadValue} />
         </div>
       </div>
 
-      {/* Pitch */}
-      <div className="bg-turf relative flex flex-col justify-between gap-5 overflow-hidden rounded-md p-5 ring-1 ring-white/10 shadow-[inset_0_1px_0_oklch(1_0_0/0.08)]">
-        {/* pitch markings */}
-        <div className="pointer-events-none absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20" />
-        <div className="pointer-events-none absolute left-1/2 top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/25" />
-        <div className="pointer-events-none absolute inset-x-6 top-1/2 h-px -translate-y-1/2 bg-white/20" />
-        <div className="pointer-events-none absolute left-1/2 top-3 h-12 w-28 -translate-x-1/2 rounded-b-sm border border-t-0 border-white/20" />
-        <div className="pointer-events-none absolute left-1/2 top-3 h-5 w-14 -translate-x-1/2 rounded-b-sm border border-t-0 border-white/15" />
-        <div className="pointer-events-none absolute bottom-3 left-1/2 h-12 w-28 -translate-x-1/2 rounded-t-sm border border-b-0 border-white/20" />
-        <div className="pointer-events-none absolute bottom-3 left-1/2 h-5 w-14 -translate-x-1/2 rounded-t-sm border border-b-0 border-white/15" />
+      <RosterQuota counts={counts} />
 
+      <div className="space-y-3">
         {rows.map((pos) => (
-          <div key={pos} className="relative flex justify-around gap-2">
-            {Array.from({ length: XI_SLOTS[pos] }).map((_, i) => (
-              <Jersey key={`${pos}-${i}`} pos={pos} pl={slots[pos][i]} />
-            ))}
+          <div key={pos}>
+            <div className="kicker mb-1.5 flex items-center justify-between">
+              <span>{POSITION_LABEL[pos]}s</span>
+              <span
+                className={cn(
+                  counts[pos] >= SQUAD_QUOTA[pos] ? "text-brand" : "text-muted-foreground",
+                )}
+              >
+                {counts[pos]}/{SQUAD_QUOTA[pos]}
+              </span>
+            </div>
+            <div className="grid grid-cols-6 gap-2 rounded-md bg-card/40 p-3 ring-1 ring-border">
+              {Array.from({ length: SQUAD_QUOTA[pos] }).map((_, i) => (
+                <Jersey key={`${pos}-${i}`} pos={pos} pl={byPos[pos][i]} />
+              ))}
+            </div>
           </div>
         ))}
-      </div>
-
-      {/* Bench */}
-      <div>
-        <div className="kicker mb-2">Bench</div>
-        <div className="flex justify-around gap-2 rounded-md bg-card/60 p-3 ring-1 ring-border">
-          {Array.from({ length: BENCH_SIZE }).map((_, i) => (
-            <Jersey key={`bench-${i}`} pl={bench[i]} />
-          ))}
-        </div>
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import type {
   ProviderClub,
   ProviderConfig,
   ProviderEvent,
+  ProviderFixturePlayerStat,
   ProviderLeague,
   ProviderPlayer,
   SportsProvider,
@@ -47,6 +48,20 @@ type FixtureEntry = {
 };
 type SquadPlayer = { id: number; name: string; position?: string | null };
 type SquadEntry = { team: { id: number; name: string }; players: SquadPlayer[] };
+// fixtures/players: per-team blocks, each with its players' fixture stat lines.
+type FixturePlayersEntry = {
+  team: { id: number; name: string };
+  players: {
+    player: { id: number; name: string };
+    statistics: {
+      games?: { minutes?: number | null };
+      shots?: { on?: number | null };
+      goals?: { total?: number | null; assists?: number | null; saves?: number | null };
+      penalty?: { saved?: number | null };
+      cards?: { yellow?: number | null; red?: number | null };
+    }[];
+  }[];
+};
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -308,6 +323,34 @@ export class ApiFootballProvider implements SportsProvider {
         away: { name: e.teams.away?.name ?? null, goals: e.goals.away ?? null },
       },
     }));
+  }
+
+  // ── Per-fixture player stats (scoring feed) ───────────────────────────────
+  // One call per fixture. shots.on already includes goals (the scoring engine
+  // nets goals out for the non-scoring SoT bonus). minutes drives appearance +
+  // the 60' gates for clean sheets / conceded.
+  async getFixturePlayerStats(fixtureRef: string): Promise<ProviderFixturePlayerStat[]> {
+    const { response } = await this.get<FixturePlayersEntry>("fixtures/players", {
+      fixture: fixtureRef,
+    });
+    const out: ProviderFixturePlayerStat[] = [];
+    for (const team of response) {
+      for (const pl of team.players ?? []) {
+        const s = pl.statistics?.[0];
+        if (!s) continue;
+        out.push({
+          playerExternalRef: String(pl.player.id),
+          minutes: s.games?.minutes ?? 0,
+          goals: s.goals?.total ?? 0,
+          assists: s.goals?.assists ?? 0,
+          shotsOn: s.shots?.on ?? 0,
+          red: s.cards?.red ?? 0,
+          yellow: s.cards?.yellow ?? 0,
+          penaltySaved: s.penalty?.saved ?? 0,
+        });
+      }
+    }
+    return out;
   }
 }
 

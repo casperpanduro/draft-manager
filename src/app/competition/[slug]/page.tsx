@@ -12,6 +12,7 @@ import {
 import { Container } from "@/components/container";
 import { CompetitionBackdrop } from "@/components/competition-backdrop";
 import { FixturesList } from "@/components/fixtures-list";
+import { ScoringRules } from "@/components/scoring-rules";
 import { getCrestMap } from "@/lib/crests";
 
 const STATUS: Record<string, { label: string; live?: boolean }> = {
@@ -209,6 +210,10 @@ export default async function CompetitionPage({
           </div>
 
           <FixturesList events={events ?? []} crests={crests} />
+
+          <div className="mt-8">
+            <ScoringRules />
+          </div>
         </div>
       </Container>
     </main>

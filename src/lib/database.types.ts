@@ -249,7 +249,9 @@ export type Database = {
           join_code: string
           name: string
           pick_deadline: string | null
+          scoring_version: number
           season_status: string
+          sim_fallback: boolean
           status: Database["public"]["Enums"]["league_status"]
           total_rounds: number
           transfer_fee: number
@@ -266,7 +268,9 @@ export type Database = {
           join_code: string
           name: string
           pick_deadline?: string | null
+          scoring_version?: number
           season_status?: string
+          sim_fallback?: boolean
           status?: Database["public"]["Enums"]["league_status"]
           total_rounds?: number
           transfer_fee?: number
@@ -283,7 +287,9 @@ export type Database = {
           join_code?: string
           name?: string
           pick_deadline?: string | null
+          scoring_version?: number
           season_status?: string
+          sim_fallback?: boolean
           status?: Database["public"]["Enums"]["league_status"]
           total_rounds?: number
           transfer_fee?: number
@@ -359,6 +365,80 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      player_match_stats: {
+        Row: {
+          assists: number
+          competition_id: string
+          created_at: string
+          event_id: string
+          goals: number
+          id: string
+          minutes: number
+          penalty_saved: number
+          player_id: string
+          red: number
+          shots_on: number
+          yellow: number
+        }
+        Insert: {
+          assists?: number
+          competition_id: string
+          created_at?: string
+          event_id: string
+          goals?: number
+          id?: string
+          minutes?: number
+          penalty_saved?: number
+          player_id: string
+          red?: number
+          shots_on?: number
+          yellow?: number
+        }
+        Update: {
+          assists?: number
+          competition_id?: string
+          created_at?: string
+          event_id?: string
+          goals?: number
+          id?: string
+          minutes?: number
+          penalty_saved?: number
+          player_id?: string
+          red?: number
+          shots_on?: number
+          yellow?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_match_stats_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_match_stats_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "event_rounds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_match_stats_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_match_stats_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
             referencedColumns: ["id"]
           },
         ]
@@ -800,6 +880,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      score_player_match: {
+        Args: { p_ga: number; p_pos: string; raw: Json }
+        Returns: number
+      }
       seat_for_pick: {
         Args: { p_pick: number; p_teams: number }
         Returns: number
@@ -809,11 +893,21 @@ export type Database = {
         Returns: undefined
       }
       set_lineup: {
-        Args: { p_bench: string[]; p_league_id: string; p_xi: string[] }
+        Args: {
+          p_bench: string[]
+          p_formation?: string
+          p_league_id: string
+          p_xi: string[]
+        }
         Returns: undefined
       }
       start_draft: { Args: { p_league_id: string }; Returns: undefined }
       template_bench: { Args: { t: Json }; Returns: number }
+      template_default_formation: { Args: { t: Json }; Returns: string }
+      template_formation_slots: {
+        Args: { p_name: string; t: Json }
+        Returns: Json
+      }
       template_roster_size: { Args: { t: Json }; Returns: number }
       template_slot_count: {
         Args: { p_code: string; t: Json }

@@ -190,7 +190,7 @@ export function PlayerAvatar({
       {position && (
         <span
           className={cn(
-            "absolute -bottom-1 -left-1 grid place-items-center rounded-sm px-1 font-display leading-none ring-1 ring-black/30",
+            "absolute -bottom-1 left-1/2 grid -translate-x-1/2 place-items-center rounded-sm px-1 font-display leading-none ring-1 ring-black/30",
             POS_CHIP[position] ?? "bg-muted text-foreground",
           )}
           style={{

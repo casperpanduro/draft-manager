@@ -15,6 +15,11 @@ import { fmtCoins, Coin } from "@/components/value-tag";
 import { SeasonPitch } from "@/components/season-pitch";
 import { TransferMarket } from "@/components/transfer-market";
 import { SeasonStats } from "@/components/season-stats";
+import { ScoringRules } from "@/components/scoring-rules";
+import {
+  ScoreBreakdownLines,
+  resultLine,
+} from "@/components/player-score-breakdown";
 import { TeamCrest } from "@/components/team-crest";
 import { crestFor, type CrestMap } from "@/lib/crests";
 import { cn } from "@/lib/utils";
@@ -209,16 +214,6 @@ export function SeasonRoom({
     [teamPlayers],
   );
 
-  const myCurrentRound = useMemo(
-    () =>
-      myTeam
-        ? teamRounds.find(
-            (r) => r.teamId === myTeam.id && r.round === currentRound,
-          ) ?? null
-        : null,
-    [teamRounds, myTeam, currentRound],
-  );
-
   const standingRows = useMemo<TeamRoundRow[]>(
     () =>
       teamRounds.map((r) => ({
@@ -239,6 +234,18 @@ export function SeasonRoom({
       ).length
     : 0;
   const freeLeft = Math.max(0, freeTransfersPerRound - freeUsed);
+
+  // Manager headline stats (shown above the tab menu, on every tab).
+  const myTotal = myTeam
+    ? standingRows
+        .filter((r) => r.teamId === myTeam.id && r.points != null)
+        .reduce((s, r) => s + (r.points ?? 0), 0)
+    : 0;
+  const lastRoundPts = myTeam
+    ? standingRows.find(
+        (r) => r.teamId === myTeam.id && r.round === currentRound - 1,
+      )?.points ?? null
+    : null;
 
   // Has the current round been played yet? (results exist)
   const currentPlayed = matchResults.some((m) => m.round === currentRound);
@@ -297,6 +304,7 @@ export function SeasonRoom({
       p_league_id: leagueId,
       p_xi: lineup.xi,
       p_bench: lineup.bench,
+      p_formation: lineup.formation,
     });
     setBusy(false);
     if (error) toast.error(error.message);
@@ -343,6 +351,7 @@ export function SeasonRoom({
     ["standings", "Table"],
     ["fixtures", "Fixtures"],
     ["stats", "Stats"],
+    ["scoring", "Scoring"],
   ];
 
   return (
@@ -358,8 +367,21 @@ export function SeasonRoom({
         onPlay={playRound}
       />
 
+      {myTeam && (
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="Rank" value={myRank ? `${ordinal(myRank)}` : "—"} sub={`of ${teams.length}`} />
+          <Stat label="Total pts" value={String(myTotal)} />
+          <Stat
+            label="Last round"
+            value={lastRoundPts != null ? `${lastRoundPts}` : "—"}
+            sub={lastRoundPts != null ? "pts" : "not played"}
+          />
+          <Stat label="Free transfers" value={String(freeLeft)} sub="left this round" />
+        </div>
+      )}
+
       <Tabs defaultValue="overview" className="mt-5 flex flex-1 flex-col">
-        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 rounded-sm bg-card/70 p-1 ring-1 ring-border sm:grid-cols-6">
+        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 rounded-sm bg-card/70 p-1 ring-1 ring-border sm:grid-cols-7">
           {TABS.map(([v, label]) => (
             <TabsTrigger
               key={v}
@@ -376,12 +398,8 @@ export function SeasonRoom({
           <Overview
             crests={crests}
             myTeam={myTeam}
-            myRank={myRank}
-            totalTeams={teams.length}
-            standingRows={standingRows}
             currentRound={currentRound}
             totalRounds={totalRounds}
-            freeLeft={freeLeft}
             mySquad={mySquad}
             fixtures={fixtures.filter((f) => f.round === currentRound)}
             currentPlayed={currentPlayed}
@@ -394,10 +412,13 @@ export function SeasonRoom({
           {myTeam ? (
             <SeasonPitch
               squad={mySquad}
-              teamRound={myCurrentRound}
-              locked={myCurrentRound?.locked ?? false}
+              playerById={playerById}
+              teamRounds={teamRounds.filter((r) => r.teamId === myTeam.id)}
               currentRound={currentRound}
+              totalRounds={totalRounds}
               playerScores={playerScores}
+              fixtures={fixtures}
+              crests={crests}
               busy={busy}
               onSave={saveLineup}
             />
@@ -460,6 +481,11 @@ export function SeasonRoom({
             playerById={playerById}
             mySquad={mySquad}
           />
+        </TabsContent>
+
+        {/* ── Scoring rules ── */}
+        <TabsContent value="scoring" className="flex-1">
+          <ScoringRules className="py-1" />
         </TabsContent>
       </Tabs>
     </div>
@@ -538,12 +564,8 @@ function SeasonScoreboard({
 function Overview({
   crests,
   myTeam,
-  myRank,
-  totalTeams,
-  standingRows,
   currentRound,
   totalRounds,
-  freeLeft,
   mySquad,
   fixtures,
   currentPlayed,
@@ -551,43 +573,17 @@ function Overview({
 }: {
   crests: CrestMap;
   myTeam: ViewTeam | null;
-  myRank: number | null;
-  totalTeams: number;
-  standingRows: TeamRoundRow[];
   currentRound: number;
   totalRounds: number;
-  freeLeft: number;
   mySquad: ViewPlayer[];
   fixtures: Fixture[];
   currentPlayed: boolean;
   finished: boolean;
 }) {
-  const myTotal = myTeam
-    ? standingRows
-        .filter((r) => r.teamId === myTeam.id && r.points != null)
-        .reduce((s, r) => s + (r.points ?? 0), 0)
-    : 0;
-  const lastRoundPts = myTeam
-    ? standingRows.find(
-        (r) => r.teamId === myTeam.id && r.round === currentRound - 1,
-      )?.points ?? null
-    : null;
-
   const myNations = new Set(mySquad.map((p) => p.club));
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Rank" value={myRank ? `${ordinal(myRank)}` : "—"} sub={`of ${totalTeams}`} />
-        <Stat label="Total pts" value={String(myTotal)} />
-        <Stat
-          label="Last round"
-          value={lastRoundPts != null ? `${lastRoundPts}` : "—"}
-          sub={lastRoundPts != null ? "pts" : "not played"}
-        />
-        <Stat label="Free transfers" value={String(freeLeft)} sub="left this round" />
-      </div>
-
       {myTeam && (
         <div className="flex items-center justify-between rounded-sm bg-card/60 px-4 py-3 ring-1 ring-border">
           <span className="kicker text-foreground">Budget</span>
@@ -887,30 +883,7 @@ function FixturesTab({
 
               <ul className="mt-3 space-y-1.5">
                 {detail.haul.players.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center gap-3 rounded-sm bg-background/40 px-3 py-2 ring-1 ring-border"
-                  >
-                    <span
-                      className={cn(
-                        "grid w-9 shrink-0 place-items-center rounded-sm py-0.5 font-display text-[10px] ring-1",
-                        POS_TAG[p.position],
-                      )}
-                    >
-                      {p.position}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-display text-sm uppercase leading-tight">
-                        {p.name}
-                      </span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {statLine(p.stats)}
-                      </span>
-                    </span>
-                    <span className="font-display text-lg tabular-nums text-brand">
-                      {p.points}
-                    </span>
-                  </li>
+                  <PlayerHaulRow key={p.id} player={p} />
                 ))}
               </ul>
             </div>
@@ -921,15 +894,37 @@ function FixturesTab({
   );
 }
 
-/** Readable one-line summary of a player's round from their match stats. */
-function statLine(s: PlayerRoundStats | null): string {
-  if (!s) return "No data";
-  if (!s.played) return "Did not feature";
-  const result = s.won ? "Win" : s.gf === s.ga ? "Draw" : "Loss";
-  const bits = [result];
-  if (s.gf != null && s.ga != null) bits.push(`${s.gf}–${s.ga}`);
-  if (s.clean) bits.push("clean sheet");
-  return bits.join(" · ");
+// ── One player's haul, with the per-category points breakdown (D3) ────────
+function PlayerHaulRow({ player }: { player: HaulPlayer }) {
+  return (
+    <li className="rounded-sm bg-background/40 px-3 py-2 ring-1 ring-border">
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            "grid w-9 shrink-0 place-items-center rounded-sm py-0.5 font-display text-[10px] ring-1",
+            POS_TAG[player.position],
+          )}
+        >
+          {player.position}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-display text-sm uppercase leading-tight">
+            {player.name}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {resultLine(player.stats)}
+          </span>
+        </span>
+        <span className="font-display text-lg tabular-nums text-brand">
+          {player.points}
+        </span>
+      </div>
+
+      <div className="mt-1.5 border-t border-border/60 pt-1.5">
+        <ScoreBreakdownLines stats={player.stats} position={player.position} />
+      </div>
+    </li>
+  );
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────

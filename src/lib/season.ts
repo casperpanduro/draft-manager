@@ -11,12 +11,18 @@
 import {
   type Position,
   type RosterTemplate,
+  type Formation,
   POSITIONS,
-  XI_SLOTS,
+  SQUAD_QUOTA,
+  formationsOf,
+  formationByName,
+  DEFAULT_FORMATION,
 } from "./draft";
 
 // ── Lineup shape (mirror of team_rounds.lineup JSONB) ────────────────────
-export type Lineup = { xi: string[]; bench: string[] };
+// `formation` is the XI shape the manager picked (e.g. "4-4-2"). Older rows
+// without it default to DEFAULT_FORMATION.
+export type Lineup = { xi: string[]; bench: string[]; formation: string };
 
 /** A squad player with the fields lineup/standings math needs. */
 export type SquadPlayer = {
@@ -26,36 +32,95 @@ export type SquadPlayer = {
 };
 
 // ── Per-player round performance (mirror of player_scores.stats) ─────────
+// Raw event counts (what the player actually did) plus the team-level context
+// (gf/ga/won/clean) used by the scoring formula. Both the real feed and the
+// offline sim fill this; the UI re-derives the points breakdown from it via
+// scorePlayerMatch() in scoring.ts.
 export type PlayerRoundStats = {
   played: boolean;
+  minutes?: number;
+  goals?: number;
+  assists?: number;
+  shots_on?: number;
+  red?: number;
+  yellow?: number;
+  pen_saved?: number;
   gf?: number;
   ga?: number;
   won?: boolean;
   clean?: boolean;
 };
 
+/** Map stored player_scores.stats → the PlayerMatchRaw scoring input. */
+export function rawFromStats(s: PlayerRoundStats): {
+  minutes: number;
+  goals: number;
+  assists: number;
+  shotsOn: number;
+  red: number;
+  yellow: number;
+  penaltySaved: number;
+} {
+  return {
+    minutes: s.minutes ?? 0,
+    goals: s.goals ?? 0,
+    assists: s.assists ?? 0,
+    shotsOn: s.shots_on ?? 0,
+    red: s.red ?? 0,
+    yellow: s.yellow ?? 0,
+    penaltySaved: s.pen_saved ?? 0,
+  };
+}
+
 // ── Default best XI ──────────────────────────────────────────────────────
+/** Per-position XI counts for a formation (or the template's slots if none). */
+function xiSlotsFor(
+  template: RosterTemplate,
+  formation: string | null,
+): Record<string, number> {
+  const f = formationByName(template, formation ?? DEFAULT_FORMATION);
+  if (f) return f.slots;
+  // Positionless / no formations: XI shape == the squad slots.
+  return Object.fromEntries(template.slots.map((s) => [s.code, s.count]));
+}
+
 /**
- * Fill each template slot with the top-rated players of that position; the rest
- * become the bench (rating-ordered). Mirror of SQL default_lineup. Used for the
- * editor's initial/auto state and as an always-valid fallback.
+ * Fill the chosen formation's slots with the top-rated players of each position;
+ * the rest become the bench (rating-ordered). Mirror of SQL default_lineup. Used
+ * for the editor's initial/auto state and as an always-valid fallback.
  */
 export function defaultLineup(
   squad: SquadPlayer[],
   template: RosterTemplate,
+  formation: string | null = null,
 ): Lineup {
+  const name = formationByName(template, formation)?.name ?? DEFAULT_FORMATION;
+  const slots = xiSlotsFor(template, name);
   const byRating = [...squad].sort((a, b) => b.rating - a.rating);
   const xi: string[] = [];
 
-  for (const slot of template.slots) {
+  for (const [code, count] of Object.entries(slots)) {
     const picked = byRating
-      .filter((p) => p.position === slot.code && !xi.includes(p.id))
-      .slice(0, slot.count);
+      .filter((p) => p.position === code && !xi.includes(p.id))
+      .slice(0, count);
     xi.push(...picked.map((p) => p.id));
   }
 
   const bench = byRating.filter((p) => !xi.includes(p.id)).map((p) => p.id);
-  return { xi, bench };
+  return { xi, bench, formation: name };
+}
+
+/**
+ * Re-shape an existing lineup to a new formation, keeping the highest-rated
+ * players per position in the XI; everyone else benches. Always returns a valid
+ * lineup for `formation` (the squad quota guarantees enough of each position).
+ */
+export function applyFormation(
+  squad: SquadPlayer[],
+  template: RosterTemplate,
+  formation: string,
+): Lineup {
+  return defaultLineup(squad, template, formation);
 }
 
 // ── Formation validation (mirror of set_lineup checks) ───────────────────
@@ -63,11 +128,14 @@ export type LineupError =
   | { kind: "partition" }
   | { kind: "overlap" }
   | { kind: "foreign" }
+  | { kind: "badformation"; name: string }
   | { kind: "formation"; code: string; need: number; got: number };
 
 /**
  * Validate that xi+bench is an exact partition of the squad and the XI matches
- * the template formation exactly. Returns the first problem, or null if valid.
+ * the lineup's chosen formation exactly. Returns the first problem, or null if
+ * valid. When the template has formations, the XI must match the named one;
+ * otherwise it must match the template slots (positionless/legacy).
  */
 export function validateLineup(
   lineup: Lineup,
@@ -83,11 +151,21 @@ export function validateLineup(
   for (const id of all) if (!squadIds.has(id)) return { kind: "foreign" };
 
   const posById = new Map(squad.map((p) => [p.id, p.position]));
-  for (const slot of template.slots) {
-    const got = lineup.xi.filter((id) => posById.get(id) === slot.code).length;
-    if (got !== slot.count) {
-      return { kind: "formation", code: slot.code, need: slot.count, got };
-    }
+  const formations = formationsOf(template);
+
+  // Target XI shape: the named formation, or the slots when there are none.
+  let target: Array<[string, number]>;
+  if (formations.length > 0) {
+    const f = formations.find((x) => x.name === lineup.formation);
+    if (!f) return { kind: "badformation", name: lineup.formation };
+    target = Object.entries(f.slots);
+  } else {
+    target = template.slots.map((s) => [s.code, s.count]);
+  }
+
+  for (const [code, need] of target) {
+    const got = lineup.xi.filter((id) => posById.get(id) === code).length;
+    if (got !== need) return { kind: "formation", code, need, got };
   }
   return null;
 }
@@ -101,6 +179,8 @@ export function lineupErrorMessage(e: LineupError): string {
       return "A player can't be in both the XI and the bench.";
     case "foreign":
       return "That player isn't in your squad.";
+    case "badformation":
+      return `Unknown formation: ${e.name}.`;
     case "formation":
       return `Invalid formation: need ${e.need} ${e.code}, have ${e.got}.`;
   }
@@ -125,6 +205,7 @@ export function swapIntoXi(
   return {
     xi: lineup.xi.map((id) => (id === victim ? playerId : id)),
     bench: lineup.bench.map((id) => (id === playerId ? victim : id)),
+    formation: lineup.formation,
   };
 }
 
@@ -212,6 +293,31 @@ export function roundLabel(round: number, totalRounds: number): string {
   return `Round ${round} of ${totalRounds}`;
 }
 
+/**
+ * Short round label, with knockout-stage names inferred from how many fixtures
+ * the round has (a final has 1, a semi 2, …). Only the trailing rounds get
+ * stage names, so league gameweeks (many matches) stay "Round N". Heuristic
+ * until the provider's real `league.round` is stored — see the season migration.
+ */
+export function stageLabel(
+  round: number,
+  totalRounds: number,
+  fixtureCount?: number,
+): string {
+  if (fixtureCount != null && round > totalRounds - 6) {
+    const byCount: Record<number, string> = {
+      1: "Final",
+      2: "Semi-final",
+      4: "Quarter-final",
+      8: "Round of 16",
+      16: "Round of 32",
+      32: "Round of 64",
+    };
+    if (byCount[fixtureCount]) return byCount[fixtureCount];
+  }
+  return `Round ${round}`;
+}
+
 // Re-exports the season UI leans on so it imports from one place.
-export { POSITIONS, XI_SLOTS };
-export type { Position, RosterTemplate };
+export { POSITIONS, SQUAD_QUOTA, formationsOf, DEFAULT_FORMATION };
+export type { Position, RosterTemplate, Formation };

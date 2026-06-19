@@ -10,23 +10,49 @@
 
 // ── Roster template (mirror of the JSONB on `competitions.roster_template`) ──
 export type RosterSlot = { code: string; label?: string; count: number };
+/** A pickable XI shape: how many of each position START. Sum is always 11. */
+export type Formation = { name: string; slots: Record<string, number> };
 export type RosterTemplate = {
+  /** Per-position SQUAD quota — the fixed number drafted of each position. */
   slots: RosterSlot[];
-  /** Flexible bench size (any position). */
+  /** Flexible bench size (any position). 0 for fixed-quota templates. */
   bench?: number;
   /** Explicit size for positionless sports (slots empty). */
   rosterSize?: number;
+  /** Selectable XI formations (football). Absent ⇒ XI shape == slots. */
+  formations?: Formation[];
 };
 
-/** Canonical football template: 1-4-4-2 XI + 5 flexible subs = 16. */
+/**
+ * Selectable football formations. A name "D-M-F" means D defenders, M
+ * midfielders, F forwards + 1 GK = 11. MIRRORED in SQL (football_template).
+ */
+export const FOOTBALL_FORMATIONS: Formation[] = [
+  { name: "4-4-2", slots: { GK: 1, DEF: 4, MID: 4, FWD: 2 } },
+  { name: "4-3-3", slots: { GK: 1, DEF: 4, MID: 3, FWD: 3 } },
+  { name: "3-5-2", slots: { GK: 1, DEF: 3, MID: 5, FWD: 2 } },
+  { name: "3-4-3", slots: { GK: 1, DEF: 3, MID: 4, FWD: 3 } },
+  { name: "5-3-2", slots: { GK: 1, DEF: 5, MID: 3, FWD: 2 } },
+  { name: "5-4-1", slots: { GK: 1, DEF: 5, MID: 4, FWD: 1 } },
+];
+
+export const DEFAULT_FORMATION = FOOTBALL_FORMATIONS[0].name; // "4-4-2"
+
+/**
+ * Canonical football template: a FIXED squad quota (GK 2 · DEF 5 · MID 6 ·
+ * FWD 3 = 16, no flexible bench) plus the formations the XI can take. Drafting
+ * is capped per position by the quota; the season XI is any one formation, the
+ * remaining 5 players are the bench.
+ */
 export const FOOTBALL_TEMPLATE: RosterTemplate = {
   slots: [
-    { code: "GK", label: "Goalkeeper", count: 1 },
-    { code: "DEF", label: "Defender", count: 4 },
-    { code: "MID", label: "Midfielder", count: 4 },
-    { code: "FWD", label: "Forward", count: 2 },
+    { code: "GK", label: "Goalkeeper", count: 2 },
+    { code: "DEF", label: "Defender", count: 5 },
+    { code: "MID", label: "Midfielder", count: 6 },
+    { code: "FWD", label: "Forward", count: 3 },
   ],
-  bench: 5,
+  bench: 0,
+  formations: FOOTBALL_FORMATIONS,
 };
 
 /** Total roster size for a template. */
@@ -89,16 +115,34 @@ export const POSITION_LABEL: Record<Position, string> = {
   FWD: "Forward",
 };
 
-/** Starting XI in 1-4-4-2 (derived from the football template). */
-export const XI_SLOTS: Record<Position, number> = Object.fromEntries(
+/** Squad quota per position (how many of each you draft). GK2 · DEF5 · MID6 · FWD3. */
+export const SQUAD_QUOTA: Record<Position, number> = Object.fromEntries(
   FOOTBALL_TEMPLATE.slots.map((s) => [s.code, s.count]),
 ) as Record<Position, number>;
 
-export const BENCH_SIZE = FOOTBALL_TEMPLATE.bench ?? 0;
-
 export const ROSTER_SIZE = rosterSizeOf(FOOTBALL_TEMPLATE); // 16
 
+/** Starting XI size — every formation sums to this. */
+export const XI_SIZE = 11;
+
+export const BENCH_SIZE = ROSTER_SIZE - XI_SIZE; // 5
+
 export const TOTAL_ROUNDS = ROSTER_SIZE; // one pick per round
+
+/** Allowed formations for a template (football). Empty for non-football. */
+export function formationsOf(t: RosterTemplate): Formation[] {
+  return t.formations ?? [];
+}
+
+/** Look up a formation by name; falls back to the template's first formation. */
+export function formationByName(
+  t: RosterTemplate,
+  name: string | null | undefined,
+): Formation | null {
+  const fs = formationsOf(t);
+  if (fs.length === 0) return null;
+  return fs.find((f) => f.name === name) ?? fs[0];
+}
 
 /** Count drafted players per position. */
 export function countByPosition(positions: Position[]): Record<Position, number> {

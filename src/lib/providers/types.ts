@@ -42,6 +42,18 @@ export type ProviderEvent = {
   result: unknown; // sport-shaped payload (football: home/away + score)
 };
 
+/** A player's real raw stat line for a single fixture (the scoring seam). */
+export type ProviderFixturePlayerStat = {
+  playerExternalRef: string;
+  minutes: number;
+  goals: number;
+  assists: number;
+  shotsOn: number; // shots on target — INCLUDES goals
+  red: number;
+  yellow: number;
+  penaltySaved: number;
+};
+
 export interface SportsProvider {
   /** Provider key, matches `competitions.provider` / `sports.provider`. */
   readonly key: string;
@@ -64,6 +76,15 @@ export interface SportsProvider {
 
   /** Fixtures / events for a league-season (seeded into `events`). */
   getFixtures(leagueRef: string, season: number): Promise<ProviderEvent[]>;
+
+  /**
+   * Real per-player raw stats for one (finished) fixture — the scoring feed.
+   * Optional: a provider/sport without per-fixture player data simply omits it
+   * (the season then relies on the simulation fallback).
+   */
+  getFixturePlayerStats?(
+    fixtureRef: string,
+  ): Promise<ProviderFixturePlayerStat[]>;
 }
 
 /** Config persisted on the `sports` row (sports.provider_config). */

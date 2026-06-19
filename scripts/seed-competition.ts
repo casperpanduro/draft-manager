@@ -38,7 +38,7 @@ async function main() {
       `\r  ${progress.phase} · ${progress.teamsDone}/${progress.teamsTotal} teams · ${progress.players} players · ${progress.fixtures} fixtures   `,
     );
     if (progress.phase === "done") break;
-    if (steps > 60) throw new Error("too many steps — aborting");
+    if (steps > 5000) throw new Error("too many steps — aborting");
   }
   console.log("\n✓ seeded");
 

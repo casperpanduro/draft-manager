@@ -16,16 +16,25 @@ import { playerValue, teamStrength } from "@/lib/draft";
 type Admin = SupabaseClient<Database>;
 
 export type SeedTeam = { ref: string; name: string; done: boolean };
+/** A finished fixture awaiting its per-player stat pull (the scoring feed). */
+export type SeedFixture = { ref: string; eventId: string; done: boolean };
 export type SeedProgress = {
-  phase: "clubs" | "players" | "fixtures" | "done";
+  phase: "clubs" | "players" | "fixtures" | "matchstats" | "done";
   season: number;
   teams: SeedTeam[];
   teamsTotal: number;
   teamsDone: number;
   players: number;
   fixtures: number;
+  // Per-fixture player-stats phase (only finished fixtures).
+  matchFixtures?: SeedFixture[];
+  matchStatsDone?: number;
+  matchStats?: number;
   message?: string;
 };
+
+// api-football fixture statuses that mean the match is over (stats are final).
+const FINISHED_STATUSES = new Set(["FT", "AET", "PEN"]);
 
 export type SeedResult = {
   status: Database["public"]["Tables"]["competitions"]["Row"]["seed_status"];
@@ -170,7 +179,80 @@ export async function advanceSeed(
           );
         }
         progress.fixtures = events.length;
-        progress.phase = "done";
+
+        // Queue the per-player stats pull for FINISHED fixtures only — bounded,
+        // and the refresh mechanism (re-seed) picks up newly-played matchdays.
+        const finishedRefs = new Set(
+          events.filter((e) => e.status && FINISHED_STATUSES.has(e.status)).map((e) => e.externalRef),
+        );
+        if (typeof adapter.getFixturePlayerStats === "function" && finishedRefs.size) {
+          // Map external_ref → our event uuid (events were just upserted).
+          const { data: rows } = await admin
+            .from("events")
+            .select("id, external_ref")
+            .eq("competition_id", competitionId)
+            .eq("provider", comp.provider);
+          progress.matchFixtures = (rows ?? [])
+            .filter((r) => r.external_ref && finishedRefs.has(r.external_ref))
+            .map((r) => ({ ref: r.external_ref!, eventId: r.id, done: false }));
+          progress.matchStats = 0;
+          progress.matchStatsDone = 0;
+          progress.phase = progress.matchFixtures.length ? "matchstats" : "done";
+        } else {
+          progress.phase = "done";
+        }
+        break;
+      }
+
+      case "matchstats": {
+        const fx = (progress.matchFixtures ?? []).find((f) => !f.done);
+        if (!fx || typeof adapter.getFixturePlayerStats !== "function") {
+          progress.phase = "done";
+          break;
+        }
+        const stats = await adapter.getFixturePlayerStats(fx.ref);
+
+        if (stats.length) {
+          // Resolve provider player refs → our player ids for this competition.
+          const refs = stats.map((s) => s.playerExternalRef);
+          const { data: pRows } = await admin
+            .from("players")
+            .select("id, external_ref")
+            .eq("competition_id", competitionId)
+            .eq("provider", comp.provider)
+            .in("external_ref", refs);
+          const idByRef = new Map((pRows ?? []).map((r) => [r.external_ref, r.id]));
+
+          const upserts = stats
+            .map((s) => {
+              const playerId = idByRef.get(s.playerExternalRef);
+              if (!playerId) return null; // player not in our pool — skip
+              return {
+                competition_id: competitionId,
+                event_id: fx.eventId,
+                player_id: playerId,
+                minutes: s.minutes,
+                goals: s.goals,
+                assists: s.assists,
+                shots_on: s.shotsOn,
+                red: s.red,
+                yellow: s.yellow,
+                penalty_saved: s.penaltySaved,
+              };
+            })
+            .filter((r): r is NonNullable<typeof r> => r !== null);
+
+          if (upserts.length) {
+            await admin
+              .from("player_match_stats")
+              .upsert(upserts, { onConflict: "competition_id,event_id,player_id" });
+            progress.matchStats = (progress.matchStats ?? 0) + upserts.length;
+          }
+        }
+
+        fx.done = true;
+        progress.matchStatsDone = (progress.matchStatsDone ?? 0) + 1;
+        if ((progress.matchFixtures ?? []).every((f) => f.done)) progress.phase = "done";
         break;
       }
 

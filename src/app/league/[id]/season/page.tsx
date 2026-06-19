@@ -8,7 +8,18 @@ import { CompetitionCrest } from "@/components/competition-crest";
 import { CompetitionBackdrop } from "@/components/competition-backdrop";
 import { SeasonRoom } from "@/components/season-room";
 import { getCrestMap, crestFor } from "@/lib/crests";
-import { type Position } from "@/lib/draft";
+import { type Position, DEFAULT_FORMATION } from "@/lib/draft";
+import { type Lineup } from "@/lib/season";
+
+/** Read a stored lineup JSONB, defaulting the formation for legacy rows. */
+function normalizeLineup(raw: unknown): Lineup {
+  const l = (raw ?? {}) as Partial<Lineup>;
+  return {
+    xi: l.xi ?? [],
+    bench: l.bench ?? [],
+    formation: l.formation || DEFAULT_FORMATION,
+  };
+}
 
 export default async function SeasonPage({
   params,
@@ -145,7 +156,7 @@ export default async function SeasonPage({
             teamRounds={(teamRounds ?? []).map((r) => ({
               teamId: r.team_id,
               round: r.round,
-              lineup: r.lineup as { xi: string[]; bench: string[] },
+              lineup: normalizeLineup(r.lineup),
               points: r.points,
               locked: r.locked,
             }))}

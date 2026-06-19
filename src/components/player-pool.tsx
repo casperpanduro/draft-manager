@@ -6,7 +6,7 @@ import { PlayerAvatar } from "@/components/player-avatar";
 import { ValueTag } from "@/components/value-tag";
 import { RatingBadge } from "@/components/rating-badge";
 import { Button } from "@/components/ui/button";
-import { type Position, POSITIONS } from "@/lib/draft";
+import { type Position, POSITIONS, SQUAD_QUOTA } from "@/lib/draft";
 import { cn } from "@/lib/utils";
 
 export type PoolPlayer = {
@@ -40,6 +40,7 @@ export function PlayerPool({
   onToggleQueue,
   onDraft,
   canDraft,
+  counts,
   busy,
 }: {
   players: PoolPlayer[];
@@ -48,6 +49,8 @@ export function PlayerPool({
   onToggleQueue: (id: string) => void;
   onDraft?: (id: string) => void;
   canDraft?: (p: PoolPlayer) => boolean;
+  /** This manager's per-position pick counts — drives the "x/quota" chip labels. */
+  counts?: Record<Position, number>;
   busy?: boolean;
 }) {
   const [filter, setFilter] = useState<Position | "ALL">("ALL");
@@ -86,20 +89,31 @@ export function PlayerPool({
       </div>
 
       <div className="mb-3 flex gap-1.5">
-        {(["ALL", ...POSITIONS] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={cn(
-              "kicker rounded-sm px-3 py-1.5 ring-1 transition",
-              filter === f
-                ? "bg-foreground text-background ring-transparent"
-                : "ring-border hover:ring-foreground/40",
-            )}
-          >
-            {f}
-          </button>
-        ))}
+        {(["ALL", ...POSITIONS] as const).map((f) => {
+          const full =
+            f !== "ALL" && counts != null && counts[f] >= SQUAD_QUOTA[f];
+          return (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "kicker rounded-sm px-3 py-1.5 ring-1 transition",
+                filter === f
+                  ? "bg-foreground text-background ring-transparent"
+                  : full
+                    ? "text-muted-foreground ring-border opacity-60"
+                    : "ring-border hover:ring-foreground/40",
+              )}
+            >
+              {f}
+              {f !== "ALL" && counts != null && (
+                <span className="ml-1 tabular-nums opacity-70">
+                  {counts[f]}/{SQUAD_QUOTA[f]}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <div className="space-y-1.5">

@@ -356,6 +356,9 @@ function CompetitionRow({ comp }: { comp: Competition }) {
           <div className="kicker mt-1 text-muted-foreground">
             {progress.phase} · {progress.teamsDone}/{progress.teamsTotal} teams ·{" "}
             {progress.players} players · {progress.fixtures} fixtures
+            {progress.matchFixtures?.length
+              ? ` · ${progress.matchStatsDone ?? 0}/${progress.matchFixtures.length} match stats`
+              : ""}
           </div>
         </div>
       )}
