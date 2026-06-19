@@ -15,31 +15,61 @@ export default function LoginPage() {
   async function sendLink(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
-      },
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+
+    // Abort if the request hangs (e.g. Supabase stack unreachable) so the
+    // button never gets stuck on "Sending…" with no feedback.
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out — is the server reachable?")), 12000),
+    );
+
+    try {
+      const supabase = createClient();
+      const { error } = await Promise.race([
+        supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
+          },
+        }),
+        timeout,
+      ]);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setSent(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send magic link.");
+    } finally {
+      setLoading(false);
     }
-    setSent(true);
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center px-5 py-10">
-      <div className="animate-rise w-full max-w-sm">
+    <main className="relative flex flex-1 items-center justify-center px-5 py-10">
+      {/* Floodlight glow behind the card */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[30rem] w-[30rem] -translate-x-1/2 -translate-y-1/2"
+        style={{
+          background: "radial-gradient(circle, var(--brand-glow), transparent 68%)",
+        }}
+      />
+      <div className="animate-rise relative w-full max-w-sm">
         <Link href="/" className="kicker mb-6 inline-block hover:text-foreground">
           ← Draft Manager
         </Link>
 
-        <div className="clip-broadcast accent-bar relative bg-card p-7 pl-8 ring-1 ring-border">
-          <div className="kicker mb-1">Manager access</div>
-          <h1 className="font-display text-3xl uppercase">Team sheet check-in</h1>
+        <div className="clip-broadcast accent-bar relative bg-card p-7 pl-8 shadow-2xl shadow-black/40 ring-1 ring-border">
+          <div className="animate-rise kicker mb-1" style={{ animationDelay: "80ms" }}>
+            Manager access
+          </div>
+          <h1
+            className="animate-rise font-display text-3xl uppercase"
+            style={{ animationDelay: "140ms" }}
+          >
+            Team sheet check-in
+          </h1>
 
           {sent ? (
             <div className="mt-6 space-y-3 text-sm">
@@ -68,7 +98,11 @@ export default function LoginPage() {
               </p>
             </div>
           ) : (
-            <form onSubmit={sendLink} className="mt-6 space-y-4">
+            <form
+              onSubmit={sendLink}
+              className="animate-rise mt-6 space-y-4"
+              style={{ animationDelay: "200ms" }}
+            >
               <div className="space-y-1.5">
                 <label
                   htmlFor="email"

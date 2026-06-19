@@ -19,12 +19,16 @@ export function Coin({ className }: { className?: string }) {
   );
 }
 
-/** Brand-tinted value pill (a player's transfer value, in coins). */
+/**
+ * Value pill (a player's transfer value, in coins). Kept deliberately quiet —
+ * money is secondary to the colour-coded rating, so it reads as a muted gold
+ * coin rather than competing with the brand accent.
+ */
 export function ValueTag({ value, className }: { value: number; className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-sm bg-brand/10 px-1.5 py-0.5 font-display text-[11px] leading-none tabular-nums text-brand ring-1 ring-brand/25",
+        "inline-flex items-center gap-1 rounded-sm bg-amber-200/[0.07] px-1.5 py-0.5 font-display text-[11px] leading-none tabular-nums text-amber-200/75 ring-1 ring-amber-200/15",
         className,
       )}
     >

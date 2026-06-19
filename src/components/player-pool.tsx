@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Star, Plus, Search } from "lucide-react";
 import { PlayerAvatar } from "@/components/player-avatar";
 import { ValueTag } from "@/components/value-tag";
+import { RatingBadge } from "@/components/rating-badge";
 import { Button } from "@/components/ui/button";
 import { type Position, POSITIONS } from "@/lib/draft";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ export type PoolPlayer = {
   club: string;
   rating: number;
   value: number;
+  crest?: string | null;
 };
 
 export const POS_TAG: Record<Position, string> = {
@@ -113,17 +115,13 @@ export function PlayerPool({
                 queued && "ring-brand/40",
               )}
             >
-              <div className="relative shrink-0 pb-1">
-                <PlayerAvatar name={p.name} club={p.club} size={42} />
-                <span
-                  className={cn(
-                    "absolute -bottom-0.5 left-1/2 -translate-x-1/2 rounded-sm px-1 py-px font-display text-[9px] leading-none ring-1",
-                    POS_TAG[p.position],
-                  )}
-                >
-                  {p.position}
-                </span>
-              </div>
+              <PlayerAvatar
+                name={p.name}
+                club={p.club}
+                position={p.position}
+                crest={p.crest}
+                size={42}
+              />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-display text-base uppercase leading-tight">
                   {p.name}
@@ -131,9 +129,7 @@ export function PlayerPool({
                 <div className="truncate text-xs text-muted-foreground">{p.club}</div>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <span className="font-display text-xl leading-none tabular-nums">
-                  {p.rating}
-                </span>
+                <RatingBadge rating={p.rating} className="min-w-9 px-1.5 py-1 text-lg" />
                 <ValueTag value={p.value} />
               </div>
 

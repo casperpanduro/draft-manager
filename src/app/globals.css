@@ -142,6 +142,20 @@
   background: radial-gradient(110% 90% at 50% 35%, transparent 55%, oklch(0.1 0.01 168 / 0.7) 100%);
 }
 
+/* Tactical pitch turf: mown stripes + a floodlight wash from the top, deepened
+   toward the corners for depth. Shared by the draft + season XI views so they
+   stay identical. Pitch markings are layered on top as bordered elements. */
+.bg-turf {
+  background:
+    radial-gradient(90% 70% at 50% -5%, oklch(1 0 0 / 0.12), transparent 58%),
+    radial-gradient(120% 100% at 50% 50%, transparent 60%, oklch(0.18 0.03 152 / 0.55) 100%),
+    repeating-linear-gradient(
+      to bottom,
+      oklch(0.355 0.072 152) 0 38px,
+      oklch(0.305 0.066 152) 38px 76px
+    );
+}
+
 /* ── Broadcast components ────────────────────────────────────────────────── */
 @utility clip-broadcast {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
@@ -196,6 +210,31 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
 }
+/* Gentle attention pulse for valid sub targets. */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 1.5s ease-in-out infinite;
+}
+/* Broadcast lower-third ticker: track holds two identical copies, so a -50%
+   translate loops seamlessly. */
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-ticker {
+  animation: ticker 38s linear infinite;
+}
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+/* Fade the ticker edges so items enter/exit instead of hard-clipping. */
+.ticker-mask {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent);
+}
 
 .animate-rise {
   opacity: 0;
@@ -203,6 +242,24 @@
 }
 .animate-slam {
   animation: slam-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Respect reduced-motion: skip entrances (no perpetual opacity:0) and stop
+   ambient/looping effects, while keeping content fully visible. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-rise,
+  .animate-slam {
+    opacity: 1;
+  }
 }
 
 /* Sheen sweep used on the CTA / live elements */

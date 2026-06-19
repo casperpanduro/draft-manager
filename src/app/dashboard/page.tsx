@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Ticket } from "lucide-react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { competitionMeta } from "@/lib/competitions";
@@ -10,6 +11,8 @@ import {
   type CompetitionCardData,
 } from "@/components/competition-card";
 import { BrandMark } from "@/components/brand-mark";
+import { BroadcastTicker } from "@/components/broadcast-ticker";
+import { getTickerData } from "@/lib/ticker";
 import { Container } from "@/components/container";
 
 export default async function DashboardPage() {
@@ -56,6 +59,8 @@ export default async function DashboardPage() {
     };
   });
 
+  const ticker = await getTickerData(supabase);
+
   // Jump back in: active leagues only (lobby / drafting), live ones first.
   const active = myTeams
     .filter((t) => t.league!.status !== "complete")
@@ -90,8 +95,9 @@ export default async function DashboardPage() {
           )}
           <JoinLeagueDialog
             trigger={
-              <Button variant="ghost" size="sm" className="kicker">
-                # Join
+              <Button variant="ghost" size="sm" className="kicker gap-1.5">
+                <Ticket className="size-3.5" />
+                Join
               </Button>
             }
           />
@@ -103,8 +109,13 @@ export default async function DashboardPage() {
         </div>
       </header>
 
+      {/* Broadcast ticker (flush within the content column) */}
+      <div className="animate-rise -mx-5">
+        <BroadcastTicker tag={ticker.tag} items={ticker.items} />
+      </div>
+
       {/* Title block */}
-      <div className="animate-rise mb-7 mt-2">
+      <div className="animate-rise mb-7 mt-5">
         <div className="kicker">{profile?.display_name ?? user.email}</div>
         <h1 className="font-display text-5xl uppercase leading-none">
           The Gaffer&apos;s

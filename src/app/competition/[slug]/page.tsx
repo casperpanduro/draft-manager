@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Plus, Ticket } from "lucide-react";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { displayMeta, accentStyle } from "@/lib/competition-branding";
@@ -9,7 +10,9 @@ import {
   JoinLeagueDialog,
 } from "@/components/dashboard-actions";
 import { Container } from "@/components/container";
+import { CompetitionBackdrop } from "@/components/competition-backdrop";
 import { FixturesList } from "@/components/fixtures-list";
+import { getCrestMap } from "@/lib/crests";
 
 const STATUS: Record<string, { label: string; live?: boolean }> = {
   lobby: { label: "In lobby" },
@@ -54,6 +57,8 @@ export default async function CompetitionPage({
     .order("starts_at")
     .limit(20);
 
+  const crests = await getCrestMap(supabase, comp.id);
+
   const myLeagues = (teams ?? []).filter((t) => t.league);
   const meta = displayMeta(comp);
   const bg = comp.bg_url || competitionBg(slug);
@@ -67,26 +72,7 @@ export default async function CompetitionPage({
       className="relative flex flex-1 flex-col"
     >
       {/* Full-page background: competition art up top, fading to black below */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-      >
-        <div
-          className="absolute inset-0"
-          style={{ background: "var(--brand-gradient)", opacity: 0.35 }}
-        />
-        {bg ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${bg})` }}
-          />
-        ) : (
-          <div className="bg-pitch absolute inset-0 opacity-70" />
-        )}
-        <div className="bg-grain absolute inset-0 opacity-[0.08] mix-blend-overlay" />
-        {/* black gradient for readability — dark at top, art visible below */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background/85 via-background/55 to-background/20" />
-      </div>
+      <CompetitionBackdrop bg={bg} variant="hero" />
 
       {/* Hero — free over the art */}
       <Container size="wide" className="relative px-5 pb-8 pt-5">
@@ -136,7 +122,9 @@ export default async function CompetitionPage({
               lockedSlug={slug}
               trigger={
                 <button className="clip-broadcast sheen group flex h-full flex-col justify-between gap-6 bg-brand p-4 text-left text-brand-foreground ring-1 ring-transparent transition-all hover:brightness-110">
-                  <span className="font-display text-3xl">+</span>
+                  <span className="grid size-9 place-items-center rounded-sm bg-brand-foreground/15">
+                    <Plus className="size-5" strokeWidth={2.5} />
+                  </span>
                   <span>
                     <span className="block font-display text-lg uppercase leading-none">
                       New league
@@ -151,7 +139,9 @@ export default async function CompetitionPage({
             <JoinLeagueDialog
               trigger={
                 <button className="clip-broadcast group flex h-full flex-col justify-between gap-6 bg-background/60 p-4 text-left ring-1 ring-border transition-all hover:ring-brand/60">
-                  <span className="font-display text-3xl">#</span>
+                  <span className="grid size-9 place-items-center rounded-sm bg-card text-brand ring-1 ring-border transition-colors group-hover:ring-brand/50">
+                    <Ticket className="size-5" />
+                  </span>
                   <span>
                     <span className="block font-display text-lg uppercase leading-none">
                       Join league
@@ -218,7 +208,7 @@ export default async function CompetitionPage({
           })}
           </div>
 
-          <FixturesList events={events ?? []} />
+          <FixturesList events={events ?? []} crests={crests} />
         </div>
       </Container>
     </main>

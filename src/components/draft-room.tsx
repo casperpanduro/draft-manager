@@ -10,9 +10,10 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { PlayerAvatar } from "@/components/player-avatar";
-import { PlayerPool, POS_TAG, type PoolPlayer } from "@/components/player-pool";
+import { PlayerPool, type PoolPlayer } from "@/components/player-pool";
 import { QueuePanel } from "@/components/queue-panel";
 import { ValueTag } from "@/components/value-tag";
+import { ratingText, ratingRing } from "@/components/rating-badge";
 import { useDraftQueue } from "@/components/use-draft-queue";
 import { cn } from "@/lib/utils";
 import {
@@ -350,18 +351,10 @@ export function DraftRoom({
                           <PlayerAvatar
                             name={pl.name}
                             club={pl.club}
-                            size={28}
+                            position={pl.position}
+                            crest={pl.crest}
+                            size={34}
                           />
-                        )}
-                        {pl && (
-                          <span
-                            className={cn(
-                              "grid w-8 shrink-0 place-items-center rounded-sm py-0.5 font-display text-[9px] ring-1",
-                              POS_TAG[pl.position],
-                            )}
-                          >
-                            {pl.position}
-                          </span>
                         )}
                         <span className="min-w-0 flex-1 truncate">
                           <span className="font-medium">{pl?.name}</span>
@@ -520,6 +513,10 @@ function PitchView({
     (sum, pk) => sum + (playerById.get(pk.player_id)?.value ?? 0),
     0,
   );
+  const xiRatings = POSITIONS.flatMap((pos) => slots[pos].map((p) => p.rating));
+  const avgRating = xiRatings.length
+    ? Math.round(xiRatings.reduce((a, b) => a + b, 0) / xiRatings.length)
+    : 0;
 
   const rows: Position[] = ["FWD", "MID", "DEF", "GK"];
 
@@ -528,24 +525,26 @@ function PitchView({
       <div className="flex items-center justify-between gap-3">
         <h3 className="kicker text-foreground">Starting XI · 1-4-4-2</h3>
         <div className="flex items-center gap-2">
+          {avgRating > 0 && (
+            <span className="kicker">
+              ⌀ <span className={cn("font-display", ratingText(avgRating))}>{avgRating}</span>
+            </span>
+          )}
           <span className="kicker">{xiCount}/11 · {bench.length}/{BENCH_SIZE} bench</span>
           <ValueTag value={squadValue} />
         </div>
       </div>
 
       {/* Pitch */}
-      <div
-        className="relative flex flex-col justify-between gap-5 overflow-hidden rounded-md p-5 ring-1 ring-border"
-        style={{
-          background:
-            "repeating-linear-gradient(to bottom, oklch(0.34 0.07 152) 0 36px, oklch(0.3 0.065 152) 36px 72px)",
-        }}
-      >
+      <div className="bg-turf relative flex flex-col justify-between gap-5 overflow-hidden rounded-md p-5 ring-1 ring-white/10 shadow-[inset_0_1px_0_oklch(1_0_0/0.08)]">
         {/* pitch markings */}
-        <div className="pointer-events-none absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/15" />
-        <div className="pointer-events-none absolute inset-x-6 top-1/2 h-px -translate-y-1/2 bg-white/15" />
-        <div className="pointer-events-none absolute left-1/2 top-3 h-12 w-28 -translate-x-1/2 rounded-b-sm border border-t-0 border-white/15" />
-        <div className="pointer-events-none absolute bottom-3 left-1/2 h-12 w-28 -translate-x-1/2 rounded-t-sm border border-b-0 border-white/15" />
+        <div className="pointer-events-none absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20" />
+        <div className="pointer-events-none absolute left-1/2 top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/25" />
+        <div className="pointer-events-none absolute inset-x-6 top-1/2 h-px -translate-y-1/2 bg-white/20" />
+        <div className="pointer-events-none absolute left-1/2 top-3 h-12 w-28 -translate-x-1/2 rounded-b-sm border border-t-0 border-white/20" />
+        <div className="pointer-events-none absolute left-1/2 top-3 h-5 w-14 -translate-x-1/2 rounded-b-sm border border-t-0 border-white/15" />
+        <div className="pointer-events-none absolute bottom-3 left-1/2 h-12 w-28 -translate-x-1/2 rounded-t-sm border border-b-0 border-white/20" />
+        <div className="pointer-events-none absolute bottom-3 left-1/2 h-5 w-14 -translate-x-1/2 rounded-t-sm border border-b-0 border-white/15" />
 
         {rows.map((pos) => (
           <div key={pos} className="relative flex justify-around gap-2">
@@ -577,10 +576,18 @@ function Jersey({ pl, pos }: { pl?: Player; pos?: Position }) {
           <PlayerAvatar
             name={pl.name}
             club={pl.club}
+            position={pl.position}
+            crest={pl.crest}
             size={46}
             className="shadow-lg shadow-black/40 ring-2 ring-white/25"
           />
-          <span className="absolute -bottom-1 -right-1 grid h-4 min-w-4 place-items-center rounded-sm bg-background px-1 font-display text-[10px] tabular-nums ring-1 ring-border">
+          <span
+            className={cn(
+              "absolute -bottom-1 -right-1 grid h-4 min-w-4 place-items-center rounded-sm bg-background/95 px-1 font-display text-[10px] tabular-nums ring-1",
+              ratingText(pl.rating),
+              ratingRing(pl.rating),
+            )}
+          >
             {pl.rating}
           </span>
         </div>

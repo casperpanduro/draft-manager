@@ -133,27 +133,74 @@ function AvatarSvg({ spec }: { spec: AvatarSpec }) {
   );
 }
 
+// Solid position chips (FM-style), one per outfield line + keeper.
+const POS_CHIP: Record<string, string> = {
+  GK: "bg-amber-400 text-amber-950",
+  DEF: "bg-sky-400 text-sky-950",
+  MID: "bg-emerald-400 text-emerald-950",
+  FWD: "bg-rose-400 text-rose-950",
+};
+
 export function PlayerAvatar({
   name,
   club,
+  position,
+  crest,
   size = 40,
   className,
 }: {
   name: string;
   club: string;
+  /** Position chip, bottom-left. Omit to hide. */
+  position?: string | null;
+  /** Country / club badge URL, top-left. Omit to hide. */
+  crest?: string | null;
   size?: number;
   className?: string;
 }) {
   const spec = avatarSpec(`${name}|${club}`, club);
+  const crestSize = Math.max(13, Math.round(size * 0.42));
+
   return (
     <span
-      className={cn(
-        "inline-block shrink-0 overflow-hidden rounded-full ring-1 ring-white/15",
-        className,
-      )}
+      className="relative inline-block shrink-0"
       style={{ width: size, height: size }}
     >
-      <AvatarSvg spec={spec} />
+      <span
+        className={cn(
+          "block size-full overflow-hidden rounded-full ring-1 ring-white/15",
+          className,
+        )}
+      >
+        <AvatarSvg spec={spec} />
+      </span>
+
+      {crest && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={crest}
+          alt=""
+          aria-label={`${club} crest`}
+          loading="lazy"
+          style={{ width: crestSize, height: crestSize }}
+          className="absolute -left-0.5 -top-0.5 rounded-full bg-card object-cover ring-1 ring-black/50"
+        />
+      )}
+
+      {position && (
+        <span
+          className={cn(
+            "absolute -bottom-1 -left-1 grid place-items-center rounded-sm px-1 font-display leading-none ring-1 ring-black/30",
+            POS_CHIP[position] ?? "bg-muted text-foreground",
+          )}
+          style={{
+            fontSize: Math.max(8, Math.round(size * 0.2)),
+            height: Math.max(12, Math.round(size * 0.3)),
+          }}
+        >
+          {position}
+        </span>
+      )}
     </span>
   );
 }

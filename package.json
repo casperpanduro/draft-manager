@@ -10,6 +10,7 @@
     "db:reset": "supabase db reset",
     "db:dump": "bash scripts/dump-seed.sh",
     "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
+    "db:seed-dev": "bash scripts/seed-dev-league.sh",
     "functions:serve": "supabase functions serve auto-pick"
   },
   "dependencies": {

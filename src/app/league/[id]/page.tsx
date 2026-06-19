@@ -5,7 +5,9 @@ import { displayMeta, accentStyle } from "@/lib/competition-branding";
 import { competitionBg } from "@/lib/competition-bg";
 import { Container } from "@/components/container";
 import { CompetitionCrest } from "@/components/competition-crest";
+import { CompetitionBackdrop } from "@/components/competition-backdrop";
 import { LobbyClient } from "@/components/lobby-client";
+import { getCrestMap, crestFor } from "@/lib/crests";
 import { type Position } from "@/lib/draft";
 
 export default async function LeaguePage({
@@ -47,6 +49,7 @@ export default async function LeaguePage({
   const comp = league.competition!;
   const meta = displayMeta(comp);
   const bg = comp.bg_url || competitionBg(comp.slug);
+  const crests = await getCrestMap(supabase, league.competition_id);
   const myQueue =
     ((teams ?? []).find((t) => t.user_id === user.id)?.draft_queue as
       | string[]
@@ -58,23 +61,7 @@ export default async function LeaguePage({
       style={accentStyle(comp.accent)}
       className="relative flex flex-1 flex-col"
     >
-      {/* Full-page competition art, fading to black for readability */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div
-          className="absolute inset-0"
-          style={{ background: "var(--brand-gradient)", opacity: 0.35 }}
-        />
-        {bg ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${bg})` }}
-          />
-        ) : (
-          <div className="bg-pitch absolute inset-0 opacity-70" />
-        )}
-        <div className="bg-grain absolute inset-0 opacity-[0.08] mix-blend-overlay" />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/85 via-background/60 to-background/30" />
-      </div>
+      <CompetitionBackdrop bg={bg} />
 
       {/* Branded hero */}
       <Container className="relative px-5 pb-6 pt-5">
@@ -109,6 +96,7 @@ export default async function LeaguePage({
         players={(players ?? []).map((p) => ({
           ...p,
           position: p.position as Position,
+          crest: crestFor(crests, p.club),
         }))}
         initialQueue={myQueue}
       />

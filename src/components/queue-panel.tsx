@@ -4,8 +4,9 @@ import { Reorder, useDragControls } from "motion/react";
 import { GripVertical, X } from "lucide-react";
 import { PlayerAvatar } from "@/components/player-avatar";
 import { ValueTag } from "@/components/value-tag";
+import { RatingBadge } from "@/components/rating-badge";
 import { Button } from "@/components/ui/button";
-import { POS_TAG, type PoolPlayer } from "@/components/player-pool";
+import { type PoolPlayer } from "@/components/player-pool";
 import { cn } from "@/lib/utils";
 
 /**
@@ -117,15 +118,13 @@ function QueueRow({
       <span className="grid size-6 shrink-0 place-items-center rounded-sm bg-muted font-display text-xs tabular-nums text-muted-foreground">
         {rank}
       </span>
-      <PlayerAvatar name={pl.name} club={pl.club} size={34} />
-      <span
-        className={cn(
-          "grid w-8 shrink-0 place-items-center rounded-sm py-0.5 font-display text-[9px] ring-1",
-          POS_TAG[pl.position],
-        )}
-      >
-        {pl.position}
-      </span>
+      <PlayerAvatar
+        name={pl.name}
+        club={pl.club}
+        position={pl.position}
+        crest={pl.crest}
+        size={34}
+      />
       <div className="min-w-0 flex-1">
         <div
           className={cn(
@@ -137,7 +136,7 @@ function QueueRow({
         </div>
         <div className="truncate text-xs text-muted-foreground">{pl.club}</div>
       </div>
-      <span className="font-display text-base leading-none tabular-nums">{pl.rating}</span>
+      <RatingBadge rating={pl.rating} />
       <ValueTag value={pl.value} className="hidden sm:inline-flex" />
       {pickable && onPick ? (
         <Button

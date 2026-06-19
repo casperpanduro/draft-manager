@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
-import { COMPETITIONS } from "@/lib/competitions";
 import { BrandMark } from "@/components/brand-mark";
+import { BroadcastTicker } from "@/components/broadcast-ticker";
 import { Container } from "@/components/container";
+import { getTickerData } from "@/lib/ticker";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -13,7 +15,7 @@ export default async function Home() {
   } = await supabase.auth.getUser();
   if (user) redirect("/dashboard");
 
-  const comps = Object.values(COMPETITIONS);
+  const ticker = await getTickerData(supabase);
 
   return (
     <main className="relative flex flex-1 flex-col">
@@ -74,33 +76,19 @@ export default async function Home() {
           >
             <Button
               size="lg"
-              className="sheen h-13 px-8 font-display text-base uppercase tracking-wider"
+              className="sheen group h-13 gap-2 px-8 font-display text-base uppercase tracking-wider"
               render={<Link href="/login" />}
             >
               Enter the draft room
+              <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
             </Button>
           </div>
-
-          {/* Fixture ticker */}
-          <div
-            className="animate-rise mt-14 border-y border-border py-3"
-            style={{ animationDelay: "340ms" }}
-          >
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              <span className="kicker">Competitions</span>
-              {comps.map((c) => (
-                <span
-                  key={c.slug}
-                  data-theme={c.theme}
-                  className="flex items-center gap-2 text-sm"
-                >
-                  <span className="size-2 rounded-full bg-brand" />
-                  <span className="font-medium">{c.name}</span>
-                </span>
-              ))}
-            </div>
-          </div>
         </Container>
+      </div>
+
+      {/* Broadcast lower-third ticker */}
+      <div className="animate-rise" style={{ animationDelay: "340ms" }}>
+        <BroadcastTicker tag={ticker.tag} items={ticker.items} />
       </div>
     </main>
   );

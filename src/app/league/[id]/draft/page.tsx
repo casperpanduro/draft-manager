@@ -6,7 +6,9 @@ import { competitionBg } from "@/lib/competition-bg";
 import { type Position } from "@/lib/draft";
 import { Container } from "@/components/container";
 import { CompetitionCrest } from "@/components/competition-crest";
+import { CompetitionBackdrop } from "@/components/competition-backdrop";
 import { DraftRoom } from "@/components/draft-room";
+import { getCrestMap, crestFor } from "@/lib/crests";
 
 export default async function DraftPage({
   params,
@@ -30,6 +32,7 @@ export default async function DraftPage({
 
   if (!league) notFound();
   if (league.status === "lobby") redirect(`/league/${id}`);
+  if (league.status === "complete") redirect(`/league/${id}/season`);
 
   const [{ data: teams }, { data: players }, { data: picks }] =
     await Promise.all([
@@ -55,6 +58,7 @@ export default async function DraftPage({
   const comp = league.competition!;
   const meta = displayMeta(comp);
   const bg = comp.bg_url || competitionBg(comp.slug);
+  const crests = await getCrestMap(supabase, league.competition_id);
   const myQueue =
     ((teams ?? []).find((t) => t.user_id === user.id)?.draft_queue as
       | string[]
@@ -66,23 +70,7 @@ export default async function DraftPage({
       style={accentStyle(comp.accent)}
       className="relative flex flex-1 flex-col"
     >
-      {/* Full-page competition art, fading to black for readability */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div
-          className="absolute inset-0"
-          style={{ background: "var(--brand-gradient)", opacity: 0.35 }}
-        />
-        {bg ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${bg})` }}
-          />
-        ) : (
-          <div className="bg-pitch absolute inset-0 opacity-70" />
-        )}
-        <div className="bg-grain absolute inset-0 opacity-[0.08] mix-blend-overlay" />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/85 via-background/60 to-background/30" />
-      </div>
+      <CompetitionBackdrop bg={bg} />
 
       {/* Compact branded hero */}
       <Container className="relative px-5 pb-3 pt-4">
@@ -123,6 +111,7 @@ export default async function DraftPage({
             players={(players ?? []).map((p) => ({
               ...p,
               position: p.position as Position,
+              crest: crestFor(crests, p.club),
             }))}
             initialPicks={picks ?? []}
             initialQueue={myQueue}
